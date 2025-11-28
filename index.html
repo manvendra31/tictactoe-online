@@ -1,288 +1,245 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Tic Tac Toe - Online + Bot Mode</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
-  <style>
-    body {
-      margin: 0;
-      background: #111;
-      color: #eee;
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyC_HDixly65xT9PcuktvtGQ7pCMI_HQXEc",
+    authDomain: "game-71234.firebaseapp.com",
+    databaseURL: "https://game-71234-default-rtdb.firebaseio.com",
+    projectId: "game-71234",
+    storageBucket: "game-71234.firebasestorage.app",
+    messagingSenderId: "487318758592",
+    appId: "1:487318758592:web:0f57e534a5154a8a127925"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const menu = document.getElementById("menu");
+  const gameArea = document.getElementById("gameArea");
+  const boardElement = document.getElementById("board");
+  const statusElement = document.getElementById("status");
+  const modeTitle = document.getElementById("modeTitle");
+
+  const playBotBtn = document.getElementById("playBot");
+  const createRoomBtn = document.getElementById("createRoom");
+  const joinRoomBtn = document.getElementById("joinRoom");
+
+  let board = Array(9).fill(null);
+  let mySymbol = "X";
+  let botMode = false;
+  let roomRef = null;
+  let roomData = null;
+
+  const winningCombos = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ];
+
+  function renderBoard() {
+    boardElement.innerHTML = "";
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement("div");
+      cell.classList.add("cell");
+      cell.dataset.index = i;
+      cell.textContent = board[i] || "";
+      cell.onclick = cellClick;
+      boardElement.appendChild(cell);
     }
-    h1 { margin-top: 20px; }
-    #menu, #gameArea { margin-top: 20px; text-align:center; }
-    button {
-      padding: 10px 20px;
-      margin: 10px;
-      background: #3498db;
-      border: none;
-      border-radius: 5px;
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    input {
-      padding: 8px;
-      border-radius: 5px;
-      border: none;
-      margin: 5px;
-      font-size: 16px;
-    }
-    #board {
-      display: grid;
-      grid-template-columns: repeat(3, 100px);
-      grid-template-rows: repeat(3, 100px);
-      gap: 5px;
-      margin-top: 20px;
-    }
-    .cell {
-      width: 100px;
-      height: 100px;
-      background: #222;
-      border-radius: 10px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 45px;
-      cursor: pointer;
-      user-select: none;
-    }
-  </style>
-</head>
+  }
 
-<body>
+  function botMove() {
+    const empty = board.map((v,i)=>v===null?i:null).filter(v=>v!==null);
+    if (empty.length === 0) return;
 
-  <h1>Tic Tac Toe 🎮</h1>
-
-  <div id="menu">
-    <button id="playBot">Play vs Bot</button>
-    <br><br>
-    <input id="playerName" placeholder="Your Name">
-    <input id="roomCode" placeholder="Room Code">
-    <br>
-    <button id="createRoom">Create Online Room</button>
-    <button id="joinRoom">Join Room</button>
-  </div>
-
-  <div id="gameArea" style="display:none;">
-    <h2 id="modeTitle"></h2>
-    <div id="status"></div>
-    <div id="board"></div>
-    <br>
-    <button onclick="location.reload()">Back to Menu</button>
-  </div>
-
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyC_HDixly65xT9PcuktvtGQ7pCMI_HQXEc",
-      authDomain: "game-71234.firebaseapp.com",
-      databaseURL: "https://game-71234-default-rtdb.firebaseio.com",
-      projectId: "game-71234",
-      storageBucket: "game-71234.firebasestorage.app",
-      messagingSenderId: "487318758592",
-      appId: "1:487318758592:web:0f57e534a5154a8a127925"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    const menu = document.getElementById("menu");
-    const gameArea = document.getElementById("gameArea");
-    const boardElement = document.getElementById("board");
-    const statusElement = document.getElementById("status");
-    const modeTitle = document.getElementById("modeTitle");
-
-    const playBotBtn = document.getElementById("playBot");
-    const createRoomBtn = document.getElementById("createRoom");
-    const joinRoomBtn = document.getElementById("joinRoom");
-
-    let board = Array(9).fill(null);
-    let mySymbol = "X";
-    let botMode = false;
-    let roomRef = null;
-    let roomData = null;
-
-    const winningCombos = [
-      [0,1,2],[3,4,5],[6,7,8],
-      [0,3,6],[1,4,7],[2,5,8],
-      [0,4,8],[2,4,6]
-    ];
-
-    function renderBoard() {
-      boardElement.innerHTML = "";
-      for (let i = 0; i < 9; i++) {
-        const cell = document.createElement("div");
-        cell.classList.add("cell");
-        cell.dataset.index = i;
-        cell.textContent = board[i] || "";
-        cell.onclick = cellClick;
-        boardElement.appendChild(cell);
-      }
+    for (let idx of empty) {
+      const copy = [...board];
+      copy[idx] = "O";
+      if (checkWinner(copy,"O")) { makeMove(idx,"O"); return; }
     }
 
-    function botMove() {
-      let empty = board.map((v,i)=>v===null?i:null).filter(v=>v!==null);
-      if (empty.length === 0) return;
-
-      for (let idx of empty) {
-        let copy=[...board]; copy[idx]="O";
-        if (checkWinner(copy,"O")) { makeMove(idx,"O"); return; }
-      }
-
-      for (let idx of empty) {
-        let copy=[...board]; copy[idx]="X";
-        if (checkWinner(copy,"X")) { makeMove(idx,"O"); return; }
-      }
-
-      makeMove(empty[Math.floor(Math.random()*empty.length)],"O");
+    for (let idx of empty) {
+      const copy = [...board];
+      copy[idx] = "X";
+      if (checkWinner(copy,"X")) { makeMove(idx,"O"); return; }
     }
 
-    function makeMove(index,symbol){
-      if(board[index]!==null) return;
-      board[index]=symbol;
-      renderBoard();
+    const idx = empty[Math.floor(Math.random()*empty.length)];
+    makeMove(idx,"O");
+  }
 
-      if(checkWinner(board,symbol)){
-        statusElement.textContent = symbol+" Wins!";
-        return;
-      }
-      if(board.every(c=>c!==null)){
-        statusElement.textContent = "Draw!";
-        return;
-      }
+  function makeMove(index, symbol) {
+    if (board[index] !== null) return;
+    board[index] = symbol;
+    renderBoard();
+
+    if (checkWinner(board, symbol)) {
+      statusElement.textContent = symbol + " Wins! 🏆";
+      return;
     }
+    if (board.every(c => c !== null)) {
+      statusElement.textContent = "Draw! 🤝";
+      return;
+    }
+  }
 
-    function cellClick(e){
-      const index = e.target.dataset.index;
+  function cellClick(e) {
+    const index = Number(e.target.dataset.index);
 
-      if (botMode){
-        if(board[index]!==null) return;
-        makeMove(index,"X");
-        setTimeout(botMove,300);
-        return;
-      }
-
-      if (!roomData) return;
-      if (mySymbol !== roomData.turn) return;
+    if (botMode) {
       if (board[index] !== null) return;
-
-      board[index] = mySymbol;
-      updateRoom();
+      makeMove(index, "X");
+      setTimeout(botMove, 300);
+      return;
     }
 
-    function checkWinner(b,p){
-      return winningCombos.some(c=>c.every(i=>b[i]===p));
+    if (!roomData) return;
+    if (mySymbol !== roomData.turn) return;
+    if (board[index] !== null) return;
+
+    board[index] = mySymbol;
+    updateRoom();
+  }
+
+  function checkWinner(b, p) {
+    return winningCombos.some(combo =>
+      combo.every(i => b[i] === p)
+    );
+  }
+
+  // BOT MODE
+  playBotBtn.onclick = () => {
+    botMode = true;
+    menu.style.display = "none";
+    gameArea.style.display = "block";
+    modeTitle.textContent = "Playing vs Bot 🤖";
+    board = Array(9).fill(null);
+    renderBoard();
+    statusElement.textContent = "Your turn (X)";
+  };
+
+  // CREATE ROOM
+  createRoomBtn.onclick = async () => {
+    const name = document.getElementById("playerName").value.trim();
+    const code = document.getElementById("roomCode").value.trim().toUpperCase();
+
+    if (!name || !code) {
+      alert("Enter your name AND a room code.");
+      return;
     }
 
-    playBotBtn.onclick = ()=>{
-      botMode=true;
-      menu.style.display="none";
-      gameArea.style.display="block";
-      modeTitle.textContent="Playing vs Bot 🤖";
-      renderBoard();
-      statusElement.textContent="Your turn (X)";
-    };
+    mySymbol = "X";
+    roomRef = db.ref("rooms/" + code);
 
-    createRoomBtn.onclick = async ()=>{
-      const name=document.getElementById("playerName").value.trim();
-      const code=document.getElementById("roomCode").value.trim().toUpperCase();
-      if(!name||!code){ alert("Enter name & room code");return;}
+    await roomRef.set({
+      board: Array(9).fill(null),
+      turn: "X",
+      status: "waiting",
+      players: { X: name, O: null }
+    });
 
-      mySymbol="X";
-      roomRef=db.ref("rooms/"+code);
+    startOnline(code);
+  };
 
-      await roomRef.set({
-        board: Array(9).fill(null),
-        turn:"X",
-        status:"waiting",
-        players:{X:name,O:null}
+  // JOIN ROOM
+  joinRoomBtn.onclick = async () => {
+    const name = document.getElementById("playerName").value.trim();
+    const code = document.getElementById("roomCode").value.trim().toUpperCase();
+
+    if (!name || !code) {
+      alert("Enter your name AND a room code.");
+      return;
+    }
+
+    roomRef = db.ref("rooms/" + code);
+    const snap = await roomRef.get();
+
+    if (!snap.exists()) {
+      alert("Room not found. Ask your friend for the correct code.");
+      return;
+    }
+
+    const data = snap.val();
+
+    if (!data.players || !data.players.X) {
+      mySymbol = "X";
+      await roomRef.update({
+        "players/X": name,
+        status: "waiting",
+        board: data.board || Array(9).fill(null)
       });
-
-      startOnline(code);
-    };
-
-    joinRoomBtn.onclick = async ()=>{
-      const name=document.getElementById("playerName").value.trim();
-      const code=document.getElementById("roomCode").value.trim().toUpperCase();
-      if(!name||!code){ alert("Enter name & code"); return;}
-
-      roomRef=db.ref("rooms/"+code);
-      const snap=await roomRef.get();
-      if(!snap.exists()){ alert("Room not found"); return; }
-
-      let data=snap.val();
-      if(!data.players.O){
-        mySymbol="O";
-
-        await roomRef.update({
-          "players/O": name,
-          status:"playing",
-          board: data.board || Array(9).fill(null)
-        });
-
-      } else { alert("Room full"); return; }
-
-      startOnline(code);
-    };
-
-    function startOnline(code){
-      botMode=false;
-      menu.style.display="none";
-      gameArea.style.display="block";
-      modeTitle.textContent="Online Room "+code;
-
-      roomRef.on("value",snap=>{
-        roomData=snap.val();
-        if(!roomData) return;
-
-        board = roomData.board;
-        renderBoard();
-
-        if(roomData.status==="waiting"){
-          statusElement.textContent="Waiting for opponent...";
-          return;
-        }
-
-        if(roomData.status==="playing"){
-          statusElement.textContent="Turn: "+roomData.turn;
-        }
-
-        if(roomData.status==="finished"){
-          if(roomData.winner==="draw") statusElement.textContent="Draw!";
-          else statusElement.textContent=roomData.winner+" Wins!";
-        }
+    } else if (!data.players.O) {
+      mySymbol = "O";
+      await roomRef.update({
+        "players/O": name,
+        status: "playing",
+        board: data.board || Array(9).fill(null)
       });
+    } else {
+      alert("Room is already full.");
+      return;
     }
 
-    function updateRoom(){
-      let result = checkWinner(board,mySymbol)
-        ? "win"
-        : board.every(c=>c!==null)
-        ? "draw"
-        : "ongoing";
+    startOnline(code);
+  };
 
-      let updates={ board };
+  function startOnline(code) {
+    botMode = false;
+    menu.style.display = "none";
+    gameArea.style.display = "block";
+    modeTitle.textContent = "Online Room " + code;
 
-      if(result==="win"){
-        updates.status="finished";
-        updates.winner=mySymbol;
-      } else if(result==="draw"){
-        updates.status="finished";
-        updates.winner="draw";
+    roomRef.on("value", snap => {
+      roomData = snap.val();
+      if (!roomData) return;
+
+      if (!Array.isArray(roomData.board) || roomData.board.length !== 9) {
+        board = Array(9).fill(null);
       } else {
-        updates.turn = mySymbol==="X" ? "O" : "X";
+        board = roomData.board;
       }
 
-      roomRef.update(updates);
+      renderBoard();
+
+      if (roomData.status === "waiting") {
+        statusElement.textContent = "Waiting for opponent to join…";
+        return;
+      }
+
+      if (roomData.status === "playing") {
+        statusElement.textContent = "Turn: " + roomData.turn;
+      }
+
+      if (roomData.status === "finished") {
+        if (roomData.winner === "draw") {
+          statusElement.textContent = "Draw! 🤝";
+        } else {
+          statusElement.textContent = roomData.winner + " Wins! 🏆";
+        }
+      }
+    });
+  }
+
+  function updateRoom() {
+    const result = checkWinner(board, mySymbol)
+      ? "win"
+      : board.every(c => c !== null)
+      ? "draw"
+      : "ongoing";
+
+    const updates = { board };
+
+    if (result === "win") {
+      updates.status = "finished";
+      updates.winner = mySymbol;
+    } else if (result === "draw") {
+      updates.status = "finished";
+      updates.winner = "draw";
+    } else {
+      updates.turn = mySymbol === "X" ? "O" : "X";
     }
-  </script>
-</body>
-</html>
+
+    roomRef.update(updates);
+  }
+</script>
